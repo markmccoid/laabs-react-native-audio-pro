@@ -62,6 +62,7 @@ class AudioPro: RCTEventEmitter {
 	private var settingProgressInterval: TimeInterval = 1.0
 	private var settingShowNextPrevControls = true
 	private var settingShowSkipControls = false
+	private var settingDisableLockScreenSeek = false
 	private var settingLoopAmbient: Bool = true
 
 	private var activeVolume: Float = 1.0
@@ -296,6 +297,7 @@ class AudioPro: RCTEventEmitter {
 		let autoPlay = options["autoPlay"] as? Bool ?? true
 		settingShowNextPrevControls = options["showNextPrevControls"] as? Bool ?? true
 		settingShowSkipControls = options["showSkipControls"] as? Bool ?? false
+		settingDisableLockScreenSeek = options["disableLockScreenSeek"] as? Bool ?? false
 		pendingStartTimeMs = options["startTimeMs"] as? Double
 
 		if let skipIntervalMs = options["skipIntervalMs"] as? Double {
@@ -363,12 +365,9 @@ class AudioPro: RCTEventEmitter {
 		}
 		MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
 
-		// Set up remote transport controls only if they haven't been set up yet
 		DispatchQueue.main.async {
-			if !self.isRemoteCommandCenterSetup {
-				UIApplication.shared.beginReceivingRemoteControlEvents()
-				self.setupRemoteTransportControls()
-			}
+			UIApplication.shared.beginReceivingRemoteControlEvents()
+			self.setupRemoteTransportControls()
 		}
 
 		// Create new player item with custom headers if provided
@@ -1100,10 +1099,7 @@ class AudioPro: RCTEventEmitter {
 	// MARK: - Remote Control Commands & Magic Tap Support
 	////////////////////////////////////////////////////////////
 
-	private func setupRemoteTransportControls() {
-		if isRemoteCommandCenterSetup { return }
-		let commandCenter = MPRemoteCommandCenter.shared()
-
+	private func applyRemoteTransportControlSettings(_ commandCenter: MPRemoteCommandCenter) {
 		// Remove both controls first (reset state)
 		commandCenter.nextTrackCommand.isEnabled = false
 		commandCenter.previousTrackCommand.isEnabled = false
@@ -1120,11 +1116,22 @@ class AudioPro: RCTEventEmitter {
 			commandCenter.skipBackwardCommand.isEnabled = true
 		}
 
-		// Always enable play, pause, toggle, and changePlaybackPosition commands
+		// Always enable play, pause, and toggle. The lock screen scrubber is configurable.
 		commandCenter.playCommand.isEnabled = true
 		commandCenter.pauseCommand.isEnabled = true
 		commandCenter.togglePlayPauseCommand.isEnabled = true
-		commandCenter.changePlaybackPositionCommand.isEnabled = true
+		commandCenter.changePlaybackPositionCommand.isEnabled = !settingDisableLockScreenSeek
+
+		commandCenter.skipForwardCommand.preferredIntervals = [NSNumber(value: settingSkipIntervalMs)]
+		commandCenter.skipBackwardCommand.preferredIntervals = [NSNumber(value: settingSkipIntervalMs)]
+	}
+
+	private func setupRemoteTransportControls() {
+		let commandCenter = MPRemoteCommandCenter.shared()
+
+		applyRemoteTransportControlSettings(commandCenter)
+
+		if isRemoteCommandCenterSetup { return }
 
 		// Register command targets as before (disabling just hides/prevents UI, targets are safe to always register)
 		commandCenter.skipForwardCommand.addTarget { [weak self] event in
@@ -1208,9 +1215,6 @@ class AudioPro: RCTEventEmitter {
 			}
 			return .success
 		}
-
-		commandCenter.skipForwardCommand.preferredIntervals = [NSNumber(value: settingSkipIntervalMs)]
-		commandCenter.skipBackwardCommand.preferredIntervals = [NSNumber(value: settingSkipIntervalMs)]
 
 		isRemoteCommandCenterSetup = true
 	}

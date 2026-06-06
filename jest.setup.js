@@ -54,30 +54,49 @@ const mockActions = {
 	updateFromEvent: jest.fn(),
 };
 
-function createInternalStoreMock(modulePath) {
-	jest.mock(modulePath, () => {
-		const internalStore = jest.fn((selector) => selector(mockState));
-		internalStore.getState = () => ({
-			...mockState,
-			...mockActions,
-		});
-		internalStore.setState = jest.fn();
-		internalStore.subscribe = jest.fn();
-		return { internalStore };
+beforeEach(() => {
+	mockState.configureOptions = {
+		progressIntervalMs: 1000,
+	};
+	mockActions.setConfigureOptions.mockImplementation((options) => {
+		mockState.configureOptions = options;
 	});
+});
+
+function createInternalStoreMock(modulePath) {
+	const mockOptions = modulePath.includes('.conductor') ? { virtual: true } : undefined;
+	jest.doMock(
+		modulePath,
+		() => {
+			const internalStore = jest.fn((selector) => selector(mockState));
+			internalStore.getState = () => ({
+				...mockState,
+				...mockActions,
+			});
+			internalStore.setState = jest.fn();
+			internalStore.subscribe = jest.fn();
+			return { internalStore };
+		},
+		mockOptions,
+	);
 }
 
 function createEmitterMock(modulePath) {
-	jest.mock(modulePath, () => ({
-		emitter: {
-			emit: jest.fn(),
-			addListener: jest.fn(() => ({ remove: jest.fn() })),
-		},
-		ambientEmitter: {
-			emit: jest.fn(),
-			addListener: jest.fn(() => ({ remove: jest.fn() })),
-		},
-	}));
+	const mockOptions = modulePath.includes('.conductor') ? { virtual: true } : undefined;
+	jest.doMock(
+		modulePath,
+		() => ({
+			emitter: {
+				emit: jest.fn(),
+				addListener: jest.fn(() => ({ remove: jest.fn() })),
+			},
+			ambientEmitter: {
+				emit: jest.fn(),
+				addListener: jest.fn(() => ({ remove: jest.fn() })),
+			},
+		}),
+		mockOptions,
+	);
 }
 
 createInternalStoreMock('./src/internalStore');

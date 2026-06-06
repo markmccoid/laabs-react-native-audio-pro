@@ -244,6 +244,7 @@ AudioPro.configure({
 	contentType: AudioProContentType.MUSIC,
 	showNextPrevControls: true, // Hide next/previous buttons
 	showSkipControls: false, // Show skip/seek forward/back buttons (default: true)
+	disableLockScreenSeek: false, // Disable the iOS lock screen progress scrubber (default: false)
 	skipIntervalMs: 30000, // Number of milliseconds for skip forward/back controls (default: 30000)
 });
 ```
@@ -253,6 +254,8 @@ AudioPro.configure({
   If your app only plays single tracks, set to `false`.
 - `showSkipControls` — Show skip/seek forward/backward buttons (default: `false`).
   If enabled, lock screen and notification controls will include skip forward/backward (seek) buttons.
+- `disableLockScreenSeek` — Disable the iOS lock screen progress scrubber (default: `false`).
+  When enabled on iOS, the system playback position command is disabled so users cannot scrub from the lock screen.
 - `skipIntervalMs` — The interval (in milliseconds) used for skip forward/back controls.
   If not set, defaults to 30000 (30 seconds).
 
@@ -298,6 +301,7 @@ type AudioProSetupOptions = {
 	progressIntervalMs?: number; // Frequency (in ms) for PROGRESS events (default: 1000ms)
 	showNextPrevControls?: boolean; // Show next/previous buttons (default: true)
 	showSkipControls?: boolean; // Show skip/seek forward/back buttons (default: true)
+	disableLockScreenSeek?: boolean; // Disable the iOS lock screen progress scrubber (default: false)
 	skipIntervalMs?: number; // Interval in milliseconds for skip forward/back controls (default: 30000)
 };
 

@@ -59,6 +59,7 @@ export const AudioPro = {
 	 * @param options.skipIntervalMs - Interval in milliseconds for skip forward/back actions
 	 * @param options.showNextPrevControls - Whether to show next/previous controls in notification
 	 * @param options.showSkipControls - Whether to show skip forward/back controls in notification
+	 * @param options.disableLockScreenSeek - Whether to disable the iOS lock screen progress scrubber
 	 */
 	/**
 	 * Configure the audio player with the specified options.

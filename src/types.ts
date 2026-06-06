@@ -33,6 +33,7 @@ export type AudioProConfigureOptions = {
 	progressIntervalMs?: number;
 	showNextPrevControls?: boolean;
 	showSkipControls?: boolean;
+	disableLockScreenSeek?: boolean;
 	skipIntervalMs?: number;
 	/**
 	 * @deprecated use skipIntervalMs instead

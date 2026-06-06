@@ -169,6 +169,7 @@ describe('AudioPro configuration', () => {
 			debug: true,
 			progressIntervalMs: 500,
 			debugIncludesProgress: true,
+			disableLockScreenSeek: true,
 		});
 
 		expect(internalStore.getState().setConfigureOptions).toHaveBeenCalledWith(
@@ -176,6 +177,26 @@ describe('AudioPro configuration', () => {
 				debug: true,
 				progressIntervalMs: 500,
 				debugIncludesProgress: true,
+				disableLockScreenSeek: true,
+			}),
+		);
+	});
+
+	it('passes lock screen seek configuration to native play options', () => {
+		const track = {
+			id: 'test-track',
+			url: 'https://example.com/audio.mp3',
+			title: 'Test Track',
+			artwork: 'https://example.com/artwork.jpg',
+		};
+
+		AudioPro.configure({ disableLockScreenSeek: true });
+		AudioPro.play(track);
+
+		expect(NativeModules.AudioPro.play).toHaveBeenCalledWith(
+			expect.any(Object),
+			expect.objectContaining({
+				disableLockScreenSeek: true,
 			}),
 		);
 	});

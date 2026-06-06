@@ -96,6 +96,8 @@ export const DEFAULT_CONFIG: AudioProConfigureOptions = {
 	showNextPrevControls: true,
 	/** Whether to show skip forward/back controls in notification */
 	showSkipControls: false,
+	/** Whether to disable lock screen scrubbing */
+	disableLockScreenSeek: false,
 	/** Interval in milliseconds for skip forward/back actions */
 	skipIntervalMs: DEFAULT_SKIP_INTERVAL_MS,
 };
