@@ -72,7 +72,8 @@ class AudioPro: RCTEventEmitter {
 	private var lastEmittedState: String = ""
 	private var wasPlayingBeforeInterruption: Bool = false
 	private var pendingStartTimeMs: Double? = nil
-	private var settingSkipIntervalMs: Double = 30000.0
+	private var settingSkipForwardIntervalMs: Double = 30000.0
+	private var settingSkipBackwardIntervalMs: Double = 30000.0
 
 	////////////////////////////////////////////////////////////
 	// MARK: - React Native Event Emitter Overrides
@@ -295,15 +296,8 @@ class AudioPro: RCTEventEmitter {
 		let speed = Float(options["playbackSpeed"] as? Double ?? 1.0)
 		let volume = Float(options["volume"] as? Double ?? 1.0)
 		let autoPlay = options["autoPlay"] as? Bool ?? true
-		settingShowNextPrevControls = options["showNextPrevControls"] as? Bool ?? true
-		settingShowSkipControls = options["showSkipControls"] as? Bool ?? false
-		settingDisableLockScreenSeek = options["disableLockScreenSeek"] as? Bool ?? false
 		pendingStartTimeMs = options["startTimeMs"] as? Double
-
-		if let skipIntervalMs = options["skipIntervalMs"] as? Double {
-			settingSkipIntervalMs = skipIntervalMs
-			log("Skip interval set to", settingSkipIntervalMs, "milliseconds")
-		}
+		applyConfigurationSettings(options)
 
 		if let progressIntervalMs = options["progressIntervalMs"] as? Double {
 			let intervalSeconds = progressIntervalMs / 1000.0
@@ -411,11 +405,7 @@ class AudioPro: RCTEventEmitter {
 		// Set up volume to ensure it's applied before playback starts
 		player?.volume = activeVolume
 
-		nowPlayingInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-		nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0
-		nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = 1.0
-		nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = item.asset.duration.seconds
-		MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+		updateNowPlayingInfo(time: 0, rate: 1.0, duration: item.asset.duration.seconds)
 
 		// Add notification observer for track completion to the new item
 		NotificationCenter.default.addObserver(
@@ -521,6 +511,79 @@ class AudioPro: RCTEventEmitter {
 				}
 			}
 		}
+	}
+
+	@objc(updateConfiguration:)
+	func updateConfiguration(options: NSDictionary) {
+		DispatchQueue.main.async { [weak self] in
+			guard let self = self else { return }
+			self.applyConfigurationSettings(options)
+			UIApplication.shared.beginReceivingRemoteControlEvents()
+			self.applyRemoteTransportControlSettings(MPRemoteCommandCenter.shared())
+			self.refreshNowPlayingInfoForCurrentConfiguration()
+		}
+	}
+
+	private func applyConfigurationSettings(_ options: NSDictionary) {
+		if let debug = options["debug"] as? Bool {
+			settingDebug = debug
+		}
+
+		if let debugIncludesProgress = options["debugIncludesProgress"] as? Bool {
+			settingDebugIncludeProgress = debugIncludesProgress
+		}
+
+		if let remoteCommandMode = options["remoteCommandMode"] as? String {
+			switch remoteCommandMode {
+			case "next-prev":
+				settingShowNextPrevControls = true
+				settingShowSkipControls = false
+			case "skip-intervals":
+				settingShowNextPrevControls = false
+				settingShowSkipControls = true
+			case "none":
+				settingShowNextPrevControls = false
+				settingShowSkipControls = false
+			default:
+				break
+			}
+		} else {
+			if let showNextPrevControls = options["showNextPrevControls"] as? Bool {
+				settingShowNextPrevControls = showNextPrevControls
+			}
+			if let showSkipControls = options["showSkipControls"] as? Bool {
+				settingShowSkipControls = showSkipControls
+			}
+			if settingShowNextPrevControls && settingShowSkipControls {
+				settingShowSkipControls = false
+			}
+		}
+
+		if let disableLockScreenSeek = options["disableLockScreenSeek"] as? Bool {
+			settingDisableLockScreenSeek = disableLockScreenSeek
+		}
+
+		if let skipIntervalMs = options["skipIntervalMs"] as? Double {
+			settingSkipForwardIntervalMs = skipIntervalMs
+			settingSkipBackwardIntervalMs = skipIntervalMs
+		}
+
+		if let skipForwardIntervalMs = options["skipForwardIntervalMs"] as? Double {
+			settingSkipForwardIntervalMs = skipForwardIntervalMs
+		}
+
+		if let skipBackwardIntervalMs = options["skipBackwardIntervalMs"] as? Double {
+			settingSkipBackwardIntervalMs = skipBackwardIntervalMs
+		}
+
+		log(
+			"Remote command settings:",
+			"nextPrev=\(settingShowNextPrevControls)",
+			"skip=\(settingShowSkipControls)",
+			"seekDisabled=\(settingDisableLockScreenSeek)",
+			"forwardMs=\(settingSkipForwardIntervalMs)",
+			"backwardMs=\(settingSkipBackwardIntervalMs)"
+		)
 	}
 
 	@objc(pause)
@@ -738,10 +801,7 @@ class AudioPro: RCTEventEmitter {
 					// Force update the now playing info to ensure controls work
 					if isAbsolute { // Only do this for absolute seeks to avoid redundant updates
 						DispatchQueue.main.async {
-							var info = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
-							info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = validPosition
-							info[MPNowPlayingInfoPropertyPlaybackRate] = player.rate
-							MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+							self.updateNowPlayingInfo(time: validPosition, rate: player.rate)
 						}
 					}
 				} else if player.rate != 0 {
@@ -1006,23 +1066,10 @@ class AudioPro: RCTEventEmitter {
 	private func updateNowPlayingInfo(time: Double? = nil, rate: Float? = nil, duration: Double? = nil, track: NSDictionary? = nil) {
 		var nowPlayingInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [String: Any]()
 
-		// Update time if provided
-		if let time = time {
-			nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = time
-		}
-
 		// Update rate if provided, otherwise use current player rate
 		nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = rate ?? player?.rate ?? 0
 
-		// Update duration if provided, otherwise try to get from current item
-		if let duration = duration {
-			nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration
-		} else if let currentItem = player?.currentItem {
-			let itemDuration = currentItem.duration.seconds
-			if !itemDuration.isNaN && !itemDuration.isInfinite {
-				nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = itemDuration
-			}
-		}
+		applyNowPlayingSeekMetadata(&nowPlayingInfo, time: time, duration: duration)
 
 		// Ensure we have the basic track info from either provided track or current track
 		let trackInfo = track ?? currentTrack
@@ -1039,6 +1086,47 @@ class AudioPro: RCTEventEmitter {
 		}
 
 		MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+	}
+
+	private func applyNowPlayingSeekMetadata(
+		_ nowPlayingInfo: inout [String: Any],
+		time: Double? = nil,
+		duration: Double? = nil
+	) {
+		if settingDisableLockScreenSeek {
+			nowPlayingInfo.removeValue(forKey: MPNowPlayingInfoPropertyElapsedPlaybackTime)
+			nowPlayingInfo.removeValue(forKey: MPMediaItemPropertyPlaybackDuration)
+			return
+		}
+
+		if let time = time {
+			nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = time
+		}
+
+		if let duration = duration {
+			if !duration.isNaN && !duration.isInfinite {
+				nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = duration
+			}
+		} else if let currentItem = player?.currentItem {
+			let itemDuration = currentItem.duration.seconds
+			if !itemDuration.isNaN && !itemDuration.isInfinite {
+				nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = itemDuration
+			}
+		}
+	}
+
+	private func refreshNowPlayingInfoForCurrentConfiguration() {
+		let currentTime = player?.currentTime().seconds
+		let validCurrentTime = currentTime?.isFinite == true ? currentTime : nil
+		let duration = player?.currentItem?.duration.seconds
+		let validDuration = duration?.isFinite == true ? duration : nil
+
+		updateNowPlayingInfo(
+			time: validCurrentTime,
+			rate: player?.rate,
+			duration: validDuration,
+			track: currentTrack
+		)
 	}
 
 	private func updateNowPlayingInfoWithCurrentTime(_ time: Double) {
@@ -1100,6 +1188,9 @@ class AudioPro: RCTEventEmitter {
 	////////////////////////////////////////////////////////////
 
 	private func applyRemoteTransportControlSettings(_ commandCenter: MPRemoteCommandCenter) {
+		commandCenter.skipForwardCommand.preferredIntervals = [remoteCommandIntervalSeconds(settingSkipForwardIntervalMs)]
+		commandCenter.skipBackwardCommand.preferredIntervals = [remoteCommandIntervalSeconds(settingSkipBackwardIntervalMs)]
+
 		// Remove both controls first (reset state)
 		commandCenter.nextTrackCommand.isEnabled = false
 		commandCenter.previousTrackCommand.isEnabled = false
@@ -1121,9 +1212,11 @@ class AudioPro: RCTEventEmitter {
 		commandCenter.pauseCommand.isEnabled = true
 		commandCenter.togglePlayPauseCommand.isEnabled = true
 		commandCenter.changePlaybackPositionCommand.isEnabled = !settingDisableLockScreenSeek
+	}
 
-		commandCenter.skipForwardCommand.preferredIntervals = [NSNumber(value: settingSkipIntervalMs)]
-		commandCenter.skipBackwardCommand.preferredIntervals = [NSNumber(value: settingSkipIntervalMs)]
+	private func remoteCommandIntervalSeconds(_ intervalMs: Double) -> NSNumber {
+		let intervalSeconds = max(1, Int(round(intervalMs / 1000.0)))
+		return NSNumber(value: intervalSeconds)
 	}
 
 	private func setupRemoteTransportControls() {
@@ -1136,13 +1229,13 @@ class AudioPro: RCTEventEmitter {
 		// Register command targets as before (disabling just hides/prevents UI, targets are safe to always register)
 		commandCenter.skipForwardCommand.addTarget { [weak self] event in
 			guard let self = self else { return .commandFailed }
-			self.seekForward(amount: self.settingSkipIntervalMs)
+			self.seekForward(amount: self.settingSkipForwardIntervalMs)
 			return .success
 		}
 
 		commandCenter.skipBackwardCommand.addTarget { [weak self] event in
 			guard let self = self else { return .commandFailed }
-			self.seekBack(amount: self.settingSkipIntervalMs)
+			self.seekBack(amount: self.settingSkipBackwardIntervalMs)
 			return .success
 		}
 

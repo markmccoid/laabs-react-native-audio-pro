@@ -7,6 +7,7 @@ jest.mock('react-native', () => ({
 	NativeModules: {
 		AudioPro: {
 			play: jest.fn(),
+			updateConfiguration: jest.fn(),
 			pause: jest.fn(),
 			resume: jest.fn(),
 			stop: jest.fn(),
@@ -36,7 +37,14 @@ const mockState = {
 	volume: 1.0,
 	playbackSpeed: 1.0,
 	configureOptions: {
+		remoteCommandMode: 'next-prev',
 		progressIntervalMs: 1000,
+		showNextPrevControls: true,
+		showSkipControls: false,
+		disableLockScreenSeek: false,
+		skipIntervalMs: 30000,
+		skipForwardIntervalMs: 30000,
+		skipBackwardIntervalMs: 30000,
 	},
 	error: null,
 	debug: false,
@@ -56,7 +64,14 @@ const mockActions = {
 
 beforeEach(() => {
 	mockState.configureOptions = {
+		remoteCommandMode: 'next-prev',
 		progressIntervalMs: 1000,
+		showNextPrevControls: true,
+		showSkipControls: false,
+		disableLockScreenSeek: false,
+		skipIntervalMs: 30000,
+		skipForwardIntervalMs: 30000,
+		skipBackwardIntervalMs: 30000,
 	};
 	mockActions.setConfigureOptions.mockImplementation((options) => {
 		mockState.configureOptions = options;

@@ -26,15 +26,20 @@ export type AudioProTrack = {
 // CONFIGURE OPTIONS
 // ==============================
 
+export type AudioProRemoteCommandMode = 'next-prev' | 'skip-intervals' | 'none';
+
 export type AudioProConfigureOptions = {
 	contentType?: AudioProContentType;
 	debug?: boolean;
 	debugIncludesProgress?: boolean;
 	progressIntervalMs?: number;
+	remoteCommandMode?: AudioProRemoteCommandMode;
 	showNextPrevControls?: boolean;
 	showSkipControls?: boolean;
 	disableLockScreenSeek?: boolean;
 	skipIntervalMs?: number;
+	skipForwardIntervalMs?: number;
+	skipBackwardIntervalMs?: number;
 	/**
 	 * @deprecated use skipIntervalMs instead
 	 */

@@ -210,11 +210,35 @@ describe('AudioPro configuration', () => {
 		const config = calls[calls.length - 1][0];
 		expect(config.showNextPrevControls).toBe(true);
 		expect(config.showSkipControls).toBe(false);
+		expect(config.remoteCommandMode).toBe('next-prev');
 		expect(warnSpy).toHaveBeenCalledWith(
 			'[react-native-audio-pro]: showNextPrevControls and showSkipControls are mutually exclusive. showSkipControls will be set to false.',
 		);
 
 		warnSpy.mockRestore();
+	});
+
+	it('uses remoteCommandMode as the explicit lock screen control signal', () => {
+		AudioPro.configure({ remoteCommandMode: 'skip-intervals' });
+
+		const calls = (internalStore.getState().setConfigureOptions as jest.Mock).mock.calls;
+		const config = calls[calls.length - 1][0];
+		expect(config.remoteCommandMode).toBe('skip-intervals');
+		expect(config.showNextPrevControls).toBe(false);
+		expect(config.showSkipControls).toBe(true);
+	});
+
+	it('stores independent skip forward and backward intervals', () => {
+		AudioPro.configure({
+			remoteCommandMode: 'skip-intervals',
+			skipForwardIntervalMs: 45000,
+			skipBackwardIntervalMs: 15000,
+		});
+
+		const calls = (internalStore.getState().setConfigureOptions as jest.Mock).mock.calls;
+		const config = calls[calls.length - 1][0];
+		expect(config.skipForwardIntervalMs).toBe(45000);
+		expect(config.skipBackwardIntervalMs).toBe(15000);
 	});
 
 	it('converts deprecated skipInterval seconds to milliseconds', () => {
@@ -226,11 +250,33 @@ describe('AudioPro configuration', () => {
 		const config = calls[calls.length - 1][0];
 		expect(config.skipInterval).toBeUndefined();
 		expect(config.skipIntervalMs).toBe(12000);
+		expect(config.skipForwardIntervalMs).toBe(12000);
+		expect(config.skipBackwardIntervalMs).toBe(12000);
 		expect(warnSpy).toHaveBeenCalledWith(
 			'[react-native-audio-pro]: skipInterval is deprecated and will be removed in a future release. Use `skipIntervalMs` instead.',
 		);
 
 		warnSpy.mockRestore();
+	});
+
+	it('updates configuration and calls native immediately', () => {
+		AudioPro.updateConfiguration({
+			remoteCommandMode: 'skip-intervals',
+			disableLockScreenSeek: true,
+			skipForwardIntervalMs: 60000,
+			skipBackwardIntervalMs: 10000,
+		});
+
+		expect(NativeModules.AudioPro.updateConfiguration).toHaveBeenCalledWith(
+			expect.objectContaining({
+				remoteCommandMode: 'skip-intervals',
+				showNextPrevControls: false,
+				showSkipControls: true,
+				disableLockScreenSeek: true,
+				skipForwardIntervalMs: 60000,
+				skipBackwardIntervalMs: 10000,
+			}),
+		);
 	});
 });
 

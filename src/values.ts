@@ -92,6 +92,8 @@ export const DEFAULT_CONFIG: AudioProConfigureOptions = {
 	debugIncludesProgress: false,
 	/** Interval in milliseconds for progress events */
 	progressIntervalMs: 1000,
+	/** Which secondary lock screen controls to show */
+	remoteCommandMode: 'next-prev',
 	/** Whether to show next/previous controls */
 	showNextPrevControls: true,
 	/** Whether to show skip forward/back controls in notification */
@@ -100,4 +102,8 @@ export const DEFAULT_CONFIG: AudioProConfigureOptions = {
 	disableLockScreenSeek: false,
 	/** Interval in milliseconds for skip forward/back actions */
 	skipIntervalMs: DEFAULT_SKIP_INTERVAL_MS,
+	/** Interval in milliseconds for skip forward actions */
+	skipForwardIntervalMs: DEFAULT_SKIP_INTERVAL_MS,
+	/** Interval in milliseconds for skip backward actions */
+	skipBackwardIntervalMs: DEFAULT_SKIP_INTERVAL_MS,
 };

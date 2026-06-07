@@ -242,40 +242,44 @@ Both iOS and Android support lock screen and notification controls for play/paus
 ```typescript
 AudioPro.configure({
 	contentType: AudioProContentType.MUSIC,
-	showNextPrevControls: true, // Hide next/previous buttons
-	showSkipControls: false, // Show skip/seek forward/back buttons (default: true)
+	remoteCommandMode: 'next-prev', // 'next-prev', 'skip-intervals', or 'none'
 	disableLockScreenSeek: false, // Disable the iOS lock screen progress scrubber (default: false)
-	skipIntervalMs: 30000, // Number of milliseconds for skip forward/back controls (default: 30000)
+	skipForwardIntervalMs: 30000, // Skip forward interval in milliseconds
+	skipBackwardIntervalMs: 15000, // Skip backward interval in milliseconds
 });
 ```
 
+- `remoteCommandMode` — Selects the secondary lock screen controls: `next-prev`, `skip-intervals`, or `none`.
 - `showNextPrevControls` — Show next/previous buttons for playlist navigation (default: `true`).
-  If enabled, lock screen and notification controls will include Next and Previous.
-  If your app only plays single tracks, set to `false`.
+  Legacy option; prefer `remoteCommandMode`.
 - `showSkipControls` — Show skip/seek forward/backward buttons (default: `false`).
-  If enabled, lock screen and notification controls will include skip forward/backward (seek) buttons.
+  Legacy option; prefer `remoteCommandMode`.
 - `disableLockScreenSeek` — Disable the iOS lock screen progress scrubber (default: `false`).
   When enabled on iOS, the system playback position command is disabled so users cannot scrub from the lock screen.
 - `skipIntervalMs` — The interval (in milliseconds) used for skip forward/back controls.
-  If not set, defaults to 30000 (30 seconds).
+  Legacy shorthand for setting both directions.
+- `skipForwardIntervalMs` / `skipBackwardIntervalMs` — Independent iOS skip button intervals in milliseconds.
 
-> ⚠️ **Only one set of controls can be active at a time.**
-> If both `showNextPrevControls` and `showSkipControls` are set to `true`, only Next/Prev controls will be shown (Skip controls will be ignored).
+Use `AudioPro.updateConfiguration()` to apply iOS lock screen control changes while playback is active.
 
 **Example:**
 
 ```typescript
 AudioPro.configure({
 	contentType: AudioProContentType.SPEECH,
-	showNextPrevControls: false,
-	showSkipControls: true, // Only show skip/seek buttons
-	skipIntervalMs: 15000, // 15 second skip
+	remoteCommandMode: 'skip-intervals',
+	skipForwardIntervalMs: 30000,
+	skipBackwardIntervalMs: 10000,
+});
+
+AudioPro.updateConfiguration({
+	remoteCommandMode: 'next-prev',
+	disableLockScreenSeek: true,
 });
 ```
 
 **iOS note:**
-Due to platform constraints, iOS only supports showing either Next/Prev or Skip controls, not both.
-Android supports both options but will prioritize Next/Prev if both are enabled.
+Next/previous commands emit `REMOTE_NEXT` and `REMOTE_PREV`; apps can handle those events as chapter jumps.
 
 For a full breakdown of ambient audio helper methods, explore the [Ambient Audio Guide](docs/ambient-audio.md#ambient-audio-methods-stateless-fire-and-forget).
 
@@ -299,10 +303,13 @@ type AudioProSetupOptions = {
 	debug?: boolean; // Verbose logging
 	debugIncludesProgress?: boolean; // Include PROGRESS events in debug logs (default: false)
 	progressIntervalMs?: number; // Frequency (in ms) for PROGRESS events (default: 1000ms)
+	remoteCommandMode?: 'next-prev' | 'skip-intervals' | 'none'; // Lock screen secondary controls
 	showNextPrevControls?: boolean; // Show next/previous buttons (default: true)
-	showSkipControls?: boolean; // Show skip/seek forward/back buttons (default: true)
+	showSkipControls?: boolean; // Show skip/seek forward/back buttons (default: false)
 	disableLockScreenSeek?: boolean; // Disable the iOS lock screen progress scrubber (default: false)
 	skipIntervalMs?: number; // Interval in milliseconds for skip forward/back controls (default: 30000)
+	skipForwardIntervalMs?: number; // iOS skip forward interval in milliseconds
+	skipBackwardIntervalMs?: number; // iOS skip backward interval in milliseconds
 };
 
 type AudioProPlayOptions = {

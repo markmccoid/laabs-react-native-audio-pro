@@ -26,6 +26,8 @@ export { useAudioPro } from './useAudioPro';
 export type {
 	/** Represents an audio track with its properties */
 	AudioProTrack,
+	/** Lock screen remote command mode */
+	AudioProRemoteCommandMode,
 	/** Callback function type for audio events */
 	AudioProEventCallback,
 	/** Type of audio events that can be emitted */

@@ -2,37 +2,50 @@
 
 ## New functionality
 
-`AudioPro.configure()` now accepts `disableLockScreenSeek?: boolean`.
+`AudioPro.configure()` and `AudioPro.updateConfiguration()` now support iOS lock screen control configuration:
 
-When `disableLockScreenSeek` is `true`, iOS disables `MPRemoteCommandCenter.shared().changePlaybackPositionCommand`. This hides or prevents use of the lock screen playback progress scrubber while preserving the existing play, pause, toggle, next/previous, and skip-forward/back command behavior.
+- `remoteCommandMode?: 'next-prev' | 'skip-intervals' | 'none'`
+- `disableLockScreenSeek?: boolean`
+- `skipForwardIntervalMs?: number`
+- `skipBackwardIntervalMs?: number`
 
-The default is `false`, so existing apps keep the current lock screen scrubber behavior unless they opt out.
+When `disableLockScreenSeek` is `true`, iOS disables `MPRemoteCommandCenter.shared().changePlaybackPositionCommand` and omits elapsed-time/duration metadata from `MPNowPlayingInfoCenter`. The metadata change is what hides the lock screen playback progress scrubber; disabling the command alone is not enough.
+
+`updateConfiguration()` reapplies these settings to the active iOS remote command center, so settings changed in-app are reflected the next time the lock screen or Control Center is shown.
 
 ## JavaScript and TypeScript changes
 
-- Added `disableLockScreenSeek?: boolean` to `AudioProConfigureOptions` in `src/types.ts`.
-- Added `disableLockScreenSeek: false` to `DEFAULT_CONFIG` in `src/values.ts`.
-- Documented the option in the `AudioPro.configure()` JSDoc in `src/audioPro.ts`.
-- Verified the bridge path with a Jest test: `AudioPro.configure({ disableLockScreenSeek: true })` is stored in configuration and included in the native options object passed to `NativeModules.AudioPro.play()`.
+- Added explicit `remoteCommandMode`.
+- Added independent forward/backward skip intervals.
+- Added `AudioPro.updateConfiguration()` for live iOS lock screen updates.
+- Kept `showNextPrevControls`, `showSkipControls`, and `skipIntervalMs` as backwards-compatible options.
 
 ## iOS native changes
 
-- Added a stored Swift setting, `settingDisableLockScreenSeek`, in `ios/AudioPro.swift`.
-- Parsed `options["disableLockScreenSeek"]` from the native playback options dictionary, defaulting to `false`.
-- Applied the setting in `setupRemoteTransportControls()` with:
+- Parsed remote command mode, lock screen seek, and independent intervals from native options.
+- Applied the lock screen scrubber setting with command-center state:
 
 ```swift
 commandCenter.changePlaybackPositionCommand.isEnabled = !settingDisableLockScreenSeek
 ```
 
+- Suppressed `MPNowPlayingInfoPropertyElapsedPlaybackTime` and `MPMediaItemPropertyPlaybackDuration` while lock screen seek is disabled so iOS does not render the scrubber.
 - Split remote command setup into setting application and target registration so command enabled states refresh on each `AudioPro.play()` call without registering duplicate command handlers.
+- Fixed iOS skip command preferred intervals to use seconds, while seek actions still use milliseconds.
 
 ## Usage
 
 ```typescript
 AudioPro.configure({
+	remoteCommandMode: 'skip-intervals',
 	disableLockScreenSeek: true,
+	skipForwardIntervalMs: 30000,
+	skipBackwardIntervalMs: 10000,
+});
+
+AudioPro.updateConfiguration({
+	remoteCommandMode: 'next-prev',
 });
 ```
 
-Configuration changes are still applied through the existing library lifecycle: configure options are stored in JavaScript and sent to native playback options on the next `AudioPro.play()` call.
+Next/previous lock screen commands emit `REMOTE_NEXT` and `REMOTE_PREV`; chapter seeking remains app-owned.

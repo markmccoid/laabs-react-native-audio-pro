@@ -28,6 +28,77 @@ import type {
 
 const NativeAudioPro = NativeModules.AudioPro;
 
+function normalizeConfigureOptions(
+	options: AudioProConfigureOptions,
+	base: AudioProConfigureOptions = DEFAULT_CONFIG,
+): AudioProConfigureOptions {
+	let config: AudioProConfigureOptions = { ...base, ...options };
+	let shorthandSkipIntervalMs = options.skipIntervalMs;
+
+	if (config.skipInterval) {
+		console.warn(
+			'[react-native-audio-pro]: skipInterval is deprecated and will be removed in a future release. Use `skipIntervalMs` instead.',
+		);
+		const { skipInterval: skipIntervalDeprecated, ...fixedConfig } = config;
+		shorthandSkipIntervalMs = skipIntervalDeprecated * 1000;
+		config = { ...fixedConfig, skipIntervalMs: shorthandSkipIntervalMs };
+	}
+
+	const skipIntervalMs = config.skipIntervalMs ?? DEFAULT_SEEK_MS;
+	config = {
+		...config,
+		skipForwardIntervalMs:
+			options.skipForwardIntervalMs ??
+			shorthandSkipIntervalMs ??
+			config.skipForwardIntervalMs ??
+			skipIntervalMs,
+		skipBackwardIntervalMs:
+			options.skipBackwardIntervalMs ??
+			shorthandSkipIntervalMs ??
+			config.skipBackwardIntervalMs ??
+			skipIntervalMs,
+	};
+
+	if (options.remoteCommandMode) {
+		if (options.remoteCommandMode === 'next-prev') {
+			return {
+				...config,
+				showNextPrevControls: true,
+				showSkipControls: false,
+			};
+		}
+
+		if (options.remoteCommandMode === 'skip-intervals') {
+			return {
+				...config,
+				showNextPrevControls: false,
+				showSkipControls: true,
+			};
+		}
+
+		return {
+			...config,
+			showNextPrevControls: false,
+			showSkipControls: false,
+		};
+	}
+
+	if (config.showNextPrevControls === true && config.showSkipControls === true) {
+		console.warn(
+			'[react-native-audio-pro]: showNextPrevControls and showSkipControls are mutually exclusive. showSkipControls will be set to false.',
+		);
+		config = { ...config, showSkipControls: false };
+	}
+
+	const remoteCommandMode = config.showNextPrevControls
+		? 'next-prev'
+		: config.showSkipControls
+			? 'skip-intervals'
+			: 'none';
+
+	return { ...config, remoteCommandMode };
+}
+
 /**
  * Checks if the current player state is valid for the given operation
  *
@@ -56,7 +127,10 @@ export const AudioPro = {
 	 * @param options.debug - Enable debug logging
 	 * @param options.debugIncludesProgress - Include progress events in debug logs
 	 * @param options.progressIntervalMs - Interval in milliseconds for progress events
+	 * @param options.remoteCommandMode - Which secondary lock screen controls to show
 	 * @param options.skipIntervalMs - Interval in milliseconds for skip forward/back actions
+	 * @param options.skipForwardIntervalMs - Interval in milliseconds for skip forward actions
+	 * @param options.skipBackwardIntervalMs - Interval in milliseconds for skip backward actions
 	 * @param options.showNextPrevControls - Whether to show next/previous controls in notification
 	 * @param options.showSkipControls - Whether to show skip forward/back controls in notification
 	 * @param options.disableLockScreenSeek - Whether to disable the iOS lock screen progress scrubber
@@ -67,35 +141,45 @@ export const AudioPro = {
 	 * Note: Configuration changes are stored but only applied when the next `play()` call is made.
 	 * This is by design and applies to all configuration options.
 	 *
-	 * Mutual exclusivity between showNextPrevControls and showSkipControls is enforced here.
-	 * If both are true, showSkipControls will be set to false and a warning logged.
+	 * Use remoteCommandMode for new code. The legacy showNextPrevControls and
+	 * showSkipControls booleans are still supported.
 	 *
 	 * @param options - Configuration options for the audio player
 	 */
 	configure(options: AudioProConfigureOptions): void {
 		const { setConfigureOptions, setDebug, setDebugIncludesProgress } =
 			internalStore.getState();
-		let config: AudioProConfigureOptions = { ...DEFAULT_CONFIG, ...options };
-		if (config.showNextPrevControls === true && config.showSkipControls === true) {
-			// If both are true, showSkipControls must be false.
-			console.warn(
-				'[react-native-audio-pro]: showNextPrevControls and showSkipControls are mutually exclusive. showSkipControls will be set to false.',
-			);
-			config = { ...config, showSkipControls: false };
-		}
-		if (config.skipInterval) {
-			// Warn if deprecated skipInterval configuration was used
-			console.warn(
-				'[react-native-audio-pro]: skipInterval is deprecated and will be removed in a future release. Use `skipIntervalMs` instead.',
-			);
-			// Remove deprecated skipInterval property, and transform to value in milliseconds
-			const { skipInterval: skipIntervalDeprecated, ...fixedConfig } = config;
-			config = { ...fixedConfig, skipIntervalMs: skipIntervalDeprecated * 1000 };
-		}
+		const config = normalizeConfigureOptions(options);
 		setConfigureOptions(config);
 		setDebug(!!options.debug);
 		setDebugIncludesProgress(options.debugIncludesProgress ?? false);
 		logDebug('AudioPro: configure()', config);
+	},
+
+	/**
+	 * Update configuration while playback is active.
+	 *
+	 * On iOS this immediately reapplies lock screen command settings, including
+	 * remoteCommandMode, skip intervals, and disableLockScreenSeek. Other platforms
+	 * keep the merged configuration for the next play() call until native support is added.
+	 *
+	 * @param options - Partial configuration options to merge into current configuration
+	 */
+	updateConfiguration(options: AudioProConfigureOptions): void {
+		const { setConfigureOptions, setDebug, setDebugIncludesProgress, configureOptions } =
+			internalStore.getState();
+		const config = normalizeConfigureOptions(options, configureOptions);
+		setConfigureOptions(config);
+
+		if (options.debug !== undefined) {
+			setDebug(options.debug);
+		}
+		if (options.debugIncludesProgress !== undefined) {
+			setDebugIncludesProgress(options.debugIncludesProgress);
+		}
+
+		logDebug('AudioPro: updateConfiguration()', config);
+		NativeAudioPro.updateConfiguration?.(config);
 	},
 
 	/**
